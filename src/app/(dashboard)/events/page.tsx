@@ -5,12 +5,14 @@ import { useLocalStorage } from "usehooks-ts";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableDemo } from ".";
 import EventDrawer from "@/components/modal";
+import { Badge } from "@/components/ui/badge";
 
 interface Event {
   id: string;
   name: string;
   date: Date;
   description?: string;
+  tag: string;
   recurrence?: "daily" | "weekly" | "monthly" | "yearly" | "no";
 }
 
@@ -22,9 +24,8 @@ export default function EventsPage() {
 
   const generateRecurringEvents = (event: Event, endDate: Date): Event[] => {
     const events: Event[] = [];
-    // eslint-disable-next-line prefer-const
-    let currentDate = new Date(event.date);
-    const maxDays = event.recurrence === "daily" ? 14 : Infinity; // Limit daily recurrence to 14 days
+    const currentDate = new Date(event.date);
+    const maxDays = event.recurrence === "daily" ? 14 : Infinity;
     let dayCount = 0;
 
     while (currentDate <= endDate && dayCount < maxDays) {
@@ -60,7 +61,8 @@ export default function EventsPage() {
     (event) =>
       event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (event.description &&
-        event.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        event.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (event.tag && event.tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleEdit = (event: Event) => {
@@ -107,6 +109,11 @@ export default function EventsPage() {
       accessorKey: "description",
       header: "Description",
       cell: ({ row }) => <span>{row.getValue("description")}</span>,
+    },
+    {
+      accessorKey: "tag",
+      header: "Tag",
+      cell: ({ row }) => <Badge>{row.getValue("tag") || "Personal"}</Badge>,
     },
     {
       accessorKey: "recurrence",

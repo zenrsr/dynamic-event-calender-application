@@ -4,6 +4,7 @@ import {
   BellPlusIcon,
   GalleryVerticalEnd,
   HomeIcon,
+  ImportIcon,
   LucideSettings,
 } from "lucide-react";
 
@@ -29,6 +30,11 @@ const data = {
       title: "Uplcoming Events",
       url: "/events",
       icon: BellPlusIcon,
+    },
+    {
+      title: "Import/Export",
+      url: "/import-export",
+      icon: ImportIcon,
     },
     {
       title: "Profile",

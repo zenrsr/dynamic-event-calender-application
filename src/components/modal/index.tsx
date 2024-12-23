@@ -26,6 +26,7 @@ interface Event {
   name: string;
   date: Date;
   description?: string;
+  tag: string;
   recurrence?: "daily" | "weekly" | "monthly" | "yearly" | "no";
 }
 
@@ -35,6 +36,7 @@ interface EventDrawerProps {
   onSave: (event: Event) => void;
   selectedDate?: Date;
   event?: Event;
+  existingEvents?: Event[];
 }
 
 export default function EventDrawer({
@@ -43,41 +45,60 @@ export default function EventDrawer({
   onSave,
   selectedDate,
   event,
+  existingEvents = [],
 }: EventDrawerProps) {
   const [eventName, setEventName] = useState<string>("");
   const [eventDescription, setEventDescription] = useState<string>("");
   const [recurrence, setRecurrence] = useState<
     "daily" | "weekly" | "monthly" | "yearly" | "no"
   >("no");
+  const [tag, setTag] = useState<string>("personal");
   const [isModified, setIsModified] = useState(false);
+
+  const validateEventTags = (
+    newEvent: Event,
+    existingEvents: Event[]
+  ): boolean => {
+    const newEventDate = new Date(newEvent.date).toDateString();
+
+    return !existingEvents.some((event) => {
+      const eventDate = new Date(event.date).toDateString();
+      return (
+        eventDate === newEventDate && // Same day
+        event.tag === newEvent.tag && // Same tag
+        event.id !== newEvent.id // Exclude the same event during edits
+      );
+    });
+  };
 
   useEffect(() => {
     if (event) {
-      setEventName(event.name);
+      setEventName(event.name || "");
       setEventDescription(event.description || "");
       setRecurrence(event.recurrence || "no");
+      setTag(event.tag || "personal");
     } else {
       setEventName("");
       setEventDescription("");
       setRecurrence("no");
+      setTag("personal");
     }
     setIsModified(false);
   }, [event]);
 
   useEffect(() => {
-    if (
-      event &&
-      (eventName !== event.name ||
-        eventDescription !== event.description ||
-        recurrence !== (event.recurrence || ""))
-    ) {
-      setIsModified(true);
-    } else if (!event && (eventName || eventDescription || recurrence)) {
-      setIsModified(true);
-    } else {
-      setIsModified(false);
-    }
-  }, [eventName, eventDescription, recurrence, event]);
+    setIsModified(
+      event
+        ? eventName !== event.name ||
+            eventDescription !== event.description ||
+            recurrence !== event.recurrence ||
+            tag !== event.tag
+        : eventName !== "" ||
+            eventDescription !== "" ||
+            recurrence !== "no" ||
+            tag !== "personal"
+    );
+  }, [eventName, eventDescription, recurrence, tag, event]);
 
   const handleSave = () => {
     if (eventName && (selectedDate || event?.date)) {
@@ -86,18 +107,29 @@ export default function EventDrawer({
         name: eventName,
         description: eventDescription,
         date: selectedDate || event?.date || new Date(),
+        tag,
         recurrence,
       };
-      if (event) {
-        onSave({ ...newEvent, id: event.id });
-      } else {
-        onSave(newEvent);
+
+      if (!validateEventTags(newEvent, existingEvents)) {
+        alert(
+          `Another event with the same tag "${newEvent.tag}" already exists on this date.`
+        );
+        return;
       }
-      setEventName("");
-      setEventDescription("");
-      setRecurrence("no");
-      onClose();
+
+      onSave(newEvent);
+      resetForm();
     }
+  };
+
+  const resetForm = () => {
+    setEventName("");
+    setEventDescription("");
+    setRecurrence("no");
+    setTag("personal");
+    setIsModified(false);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -114,7 +146,7 @@ export default function EventDrawer({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="p-4">
+        <div className="p-4 gap-4">
           <Input
             type="text"
             value={eventName}
@@ -147,6 +179,28 @@ export default function EventDrawer({
                 <SelectItem value="weekly">Weekly</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="yearly">Yearly</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={tag}
+            onValueChange={(value) =>
+              setTag(
+                value as "birthday" | "work" | "remainder" | "fun" | "personal"
+              )
+            }
+          >
+            <SelectTrigger className="w-full mb-2">
+              <SelectValue placeholder="Select tag..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="personal">Personal</SelectItem>
+                <SelectItem value="birthday">Birthday</SelectItem>
+                <SelectItem value="work">Work</SelectItem>
+                <SelectItem value="remainder">Remainder</SelectItem>
+                <SelectItem value="fun">Fun</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>

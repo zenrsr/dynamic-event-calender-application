@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { PlusCircleIcon } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useLocalStorage } from "usehooks-ts";
 
 interface Event {
@@ -12,6 +12,7 @@ interface Event {
   name: string;
   date: Date;
   description?: string;
+  tag: string;
   recurrence?: "daily" | "weekly" | "monthly" | "yearly" | "no";
 }
 const DashboardContent = () => {
@@ -20,16 +21,32 @@ const DashboardContent = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
+    const lastNotificationTimes = JSON.parse(
+      localStorage.getItem("last-notifications") || "{}"
+    );
+
     const now = new Date();
     events.forEach((event) => {
       const eventDate = new Date(event.date);
-      if (
-        now.toDateString() === eventDate.toDateString() &&
-        Notification.permission === "granted"
-      ) {
-        new Notification(`Reminder: ${event.name}`, {
-          body: `Your event "${event.name}" is happening today!`,
-        });
+      if (now.toDateString() === eventDate.toDateString()) {
+        const eventKey = `${event.id}-${event.date}`;
+        const lastNotificationTime = lastNotificationTimes[eventKey];
+
+        if (
+          !lastNotificationTime ||
+          now.getTime() - new Date(lastNotificationTime).getTime() >
+            60 * 60 * 1000
+        ) {
+          new Notification(`Reminder: ${event.name}`, {
+            body: `Your event "${event.name}" is happening today!`,
+          });
+
+          lastNotificationTimes[eventKey] = now.toISOString();
+          localStorage.setItem(
+            "last-notifications",
+            JSON.stringify(lastNotificationTimes)
+          );
+        }
       }
     });
   }, [events]);
@@ -47,21 +64,22 @@ const DashboardContent = () => {
     const eventDate = new Date(event.date);
     const selectedDate = date ? new Date(date) : new Date();
 
-    if (event.recurrence === "yearly") {
-      return (
-        eventDate.getDate() === selectedDate.getDate() &&
-        eventDate.getMonth() === selectedDate.getMonth()
-      );
-    } else if (event.recurrence === "monthly") {
-      return eventDate.getDate() === selectedDate.getDate();
-    } else if (event.recurrence === "weekly") {
-      const oneWeek = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-      return (
-        Math.abs(eventDate.getTime() - selectedDate.getTime()) % oneWeek ===
-          0 && eventDate.getTime() <= selectedDate.getTime()
-      );
-    } else {
-      return eventDate.toDateString() === selectedDate.toDateString();
+    switch (event.recurrence) {
+      case "yearly":
+        return (
+          eventDate.getDate() === selectedDate.getDate() &&
+          eventDate.getMonth() === selectedDate.getMonth()
+        );
+      case "monthly":
+        return eventDate.getDate() === selectedDate.getDate();
+      case "weekly":
+        return (
+          Math.abs(eventDate.getTime() - selectedDate.getTime()) %
+            (7 * 24 * 60 * 60 * 1000) ===
+            0 && eventDate.getTime() <= selectedDate.getTime()
+        );
+      default:
+        return eventDate.toDateString() === selectedDate.toDateString();
     }
   });
 
@@ -69,52 +87,55 @@ const DashboardContent = () => {
     const eventDate = new Date(event.date);
     const selectedDate = date ? new Date(date) : new Date();
 
-    if (event.recurrence === "yearly") {
-      const nextOccurrence = new Date(selectedDate);
-      nextOccurrence.setFullYear(selectedDate.getFullYear());
-      nextOccurrence.setMonth(eventDate.getMonth());
-      nextOccurrence.setDate(eventDate.getDate());
-      return nextOccurrence.getTime() > selectedDate.getTime();
-    } else if (event.recurrence === "monthly") {
-      const nextOccurrence = new Date(selectedDate);
-      nextOccurrence.setDate(eventDate.getDate());
-      return nextOccurrence.getTime() > selectedDate.getTime();
-    } else if (event.recurrence === "weekly") {
-      const oneWeek = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-      return (
-        Math.abs(eventDate.getTime() - selectedDate.getTime()) % oneWeek ===
-          0 && eventDate.getTime() > selectedDate.getTime()
-      );
-    } else {
-      return eventDate.getTime() > selectedDate.getTime();
+    switch (event.recurrence) {
+      case "yearly":
+        const nextYearly = new Date(selectedDate);
+        nextYearly.setFullYear(selectedDate.getFullYear());
+        nextYearly.setMonth(eventDate.getMonth());
+        nextYearly.setDate(eventDate.getDate());
+        return nextYearly.getTime() > selectedDate.getTime();
+      case "monthly":
+        const nextMonthly = new Date(selectedDate);
+        nextMonthly.setDate(eventDate.getDate());
+        return nextMonthly.getTime() > selectedDate.getTime();
+      case "weekly":
+        return (
+          Math.abs(eventDate.getTime() - selectedDate.getTime()) %
+            (7 * 24 * 60 * 60 * 1000) ===
+            0 && eventDate.getTime() > selectedDate.getTime()
+        );
+      default:
+        return eventDate.getTime() > selectedDate.getTime();
     }
   });
 
-  const markedDates = events.flatMap((event) => {
-    const eventDate = new Date(event.date);
-    if (event.recurrence === "yearly") {
-      const years = [2024, 2025, 2026]; // Add more years if needed
-      return years.map((year) =>
-        new Date(year, eventDate.getMonth(), eventDate.getDate()).toDateString()
-      );
-    } else if (event.recurrence === "monthly") {
-      const daysInMonth = Array.from({ length: 31 }, (_, i) =>
-        new Date(new Date().setDate(i + 1)).toDateString()
-      );
-      return daysInMonth.filter(
-        (day) => new Date(day).getDate() === eventDate.getDate()
-      );
-    } else if (event.recurrence === "weekly") {
-      const weeks = Array.from({ length: 8 }, (_, i) =>
-        new Date(
-          eventDate.getTime() + i * 7 * 24 * 60 * 60 * 1000
-        ).toDateString()
-      );
-      return weeks;
-    } else {
-      return eventDate.toDateString();
-    }
-  });
+  const markedDates = useMemo(() => {
+    return events.flatMap((event) => {
+      const eventDate = new Date(event.date);
+      switch (event.recurrence) {
+        case "yearly":
+          return [2024, 2025, 2026].map((year) =>
+            new Date(
+              year,
+              eventDate.getMonth(),
+              eventDate.getDate()
+            ).toDateString()
+          );
+        case "monthly":
+          return Array.from({ length: 31 }, (_, i) =>
+            new Date(new Date().setDate(i + 1)).toDateString()
+          ).filter((day) => new Date(day).getDate() === eventDate.getDate());
+        case "weekly":
+          return Array.from({ length: 8 }, (_, i) =>
+            new Date(
+              eventDate.getTime() + i * 7 * 24 * 60 * 60 * 1000
+            ).toDateString()
+          );
+        default:
+          return eventDate.toDateString();
+      }
+    });
+  }, [events]);
 
   return (
     <div className="h-screen flex flex-col bg-white/50">
@@ -210,6 +231,7 @@ const DashboardContent = () => {
         onClose={() => setIsDrawerOpen(false)}
         onSave={handleSaveEvent}
         selectedDate={date}
+        existingEvents={events}
       />
     </div>
   );
